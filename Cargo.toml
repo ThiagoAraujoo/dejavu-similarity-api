@@ -1,0 +1,83 @@
+[package]
+name = "dejavu-similarity-api"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "dejavu-similarity-api"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# ORM & Database
+sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-bigdecimal", "with-chrono"] }
+sea-query = "0.30"
+
+# Authentication & Security
+jsonwebtoken = "9"
+bcrypt = "0.15"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+base64 = "0.22"
+rand = "0.8"
+hex = "0.4"
+regex = "1.10"
+subtle = "2.5"
+
+# Environment & Configuration
+dotenvy = "0.15"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# Numeric traits
+num-traits = "0.2"
+num_cpus = "1.16"
+
+# File handling
+calamine = "0.24"
+
+# Export formats
+csv = "1.3"
+rust_xlsxwriter = "0.68"
+printpdf = "0.7"
+
+lettre = { version = "0.11.19", features = ["smtp-transport", "builder"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Async utilities
+futures = "0.3"
+
+# Decimal numbers
+rust_decimal = "1.33"
+
+# CLI argument parsing
+clap = { version = "4.0", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

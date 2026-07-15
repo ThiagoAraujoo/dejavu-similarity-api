@@ -1,0 +1,29 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Environment
+.env
+*.conf
+doc/
+uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# TypeScript/Node (legacy)
+node_modules/
+dist/
+build/
