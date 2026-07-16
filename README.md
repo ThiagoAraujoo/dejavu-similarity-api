@@ -1,13 +1,13 @@
-# Dejavu Similarity API
+# Dejavu Transcription API
 
-A high-performance audio similarity API built with Rust and faster-whisper, optimized for Portuguese language similarity.
+A high-performance audio transcription API built with Rust and faster-whisper, optimized for Portuguese language transcription.
 
 ## Features
 
-- **4x Faster Similarity**: Uses faster-whisper implementation for significantly improved performance
-- **Portuguese Optimized**: Configured specifically for Portuguese language similarity
+- **4x Faster Transcription**: Uses faster-whisper implementation for significantly improved performance
+- **Portuguese Optimized**: Configured specifically for Portuguese language transcription
 - **Multiple Output Formats**: Returns transcriptions in VTT, SRT, JSON, and TSV formats
-- **Real-time Updates**: WebSocket support for live similarity status updates
+- **Real-time Updates**: WebSocket support for live transcription status updates
 - **Noise Removal**: Optional audio preprocessing for better accuracy
 - **RESTful API**: Simple HTTP endpoints for file upload and processing
 
@@ -29,7 +29,7 @@ pip install faster-whisper
 
 ```bash
 git clone <repository-url>
-cd dejavu-similarity-api
+cd dejavu-transcription-api
 cargo build --release
 ```
 
@@ -44,7 +44,7 @@ cp .env.example .env
 Edit `.env` and set your configuration:
 
 ```env
-# Similarity (faster-whisper configuration)
+# Transcription (faster-whisper configuration)
 WHISPER_PATH=faster-whisper
 WHISPER_MODEL=large-v3
 WHISPER_LANGUAGE=pt
@@ -63,9 +63,9 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
 
 ## API Usage
 
-### Upload Audio for Similarity
+### Upload Audio for Transcription
 
-**Endpoint**: `POST /api/similarity/upload`
+**Endpoint**: `POST /api/transcription/upload`
 
 **Request** (multipart/form-data):
 - `file`: Audio file (mp3, wav, m4a, ogg, flac)
@@ -77,13 +77,13 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
 {
   "job_id": "019abc12-3def-4567-8901-234567890abc",
   "status": "processing",
-  "message": "Similarity job started. Connect to WebSocket for updates."
+  "message": "Transcription job started. Connect to WebSocket for updates."
 }
 ```
 
 ### WebSocket Status Updates
 
-**Endpoint**: `ws://localhost:8080/ws/similarity/status?token=YOUR_TOKEN`
+**Endpoint**: `ws://localhost:8080/ws/transcription/status?token=YOUR_TOKEN`
 
 **Status Update Format**:
 ```json
@@ -91,10 +91,10 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
   "job_id": "019abc12-3def-4567-8901-234567890abc",
   "status": "completed",
   "progress": 100.0,
-  "message": "Similarity completed successfully",
+  "message": "Transcription completed successfully",
   "result": {
     "uuid": "019abc12-3def-4567-8901-234567890abc",
-    "similarity": "Complete similarity text in Portuguese",
+    "transcription": "Complete transcription text in Portuguese",
     "vtt": "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTexto da transcrição...",
     "srt": "1\n00:00:00,000 --> 00:00:05,000\nTexto da transcrição...",
     "json_file": "[{\"start\": 0.0, \"end\": 5.0, \"text\": \"Texto...\"}]",
@@ -110,7 +110,7 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
 
 The API returns transcriptions in multiple formats:
 
-- **similarity**: Plain text similarity
+- **transcription**: Plain text transcription
 - **vtt**: WebVTT format with timestamps (for web video players)
 - **srt**: SubRip format with timestamps (for video subtitles)
 - **json_file**: JSON array with word/segment-level timestamps
@@ -139,7 +139,7 @@ You can configure different models via `WHISPER_MODEL` environment variable:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WHISPER_PATH` | `faster-whisper` | Command to run similarity |
+| `WHISPER_PATH` | `faster-whisper` | Command to run transcription |
 | `WHISPER_MODEL` | `large-v3` | Whisper model to use |
 | `WHISPER_LANGUAGE` | `pt` | Language code (pt = Portuguese) |
 | `WEBSOCKET_AUTH_TOKEN` | - | Authentication token for API access |
@@ -196,4 +196,4 @@ On first run, faster-whisper will download the model. Ensure you have:
 
 ## Contributing
 
-[Contributing Guidelines Here]
+[Contributing Guidelines Here] 

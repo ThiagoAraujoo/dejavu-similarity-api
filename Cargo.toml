@@ -1,10 +1,10 @@
 [package]
-name = "dejavu-similarity-api"
+name = "dejavu-transcription-api"
 version = "1.0.0"
 edition = "2021"
 
 [[bin]]
-name = "dejavu-similarity-api"
+name = "dejavu-transcription-api"
 path = "src/main.rs"
 
 [dependencies]
@@ -83,7 +83,7 @@ rust_decimal = "1.33"
 # CLI argument parsing
 clap = { version = "4.0", features = ["derive"] }
 
-# Audio similarity
+# Audio transcription
 tempfile = "3.10"
 
 [profile.release]

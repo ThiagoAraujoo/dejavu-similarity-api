@@ -1,5 +1,5 @@
 services:
-  dejavu-similarity-api:
+  dejavu-transcription-api:
     build:
       context: .
       dockerfile: Dockerfile

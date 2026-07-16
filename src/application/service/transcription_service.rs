@@ -5,7 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptionResult {
     pub uuid: String,
-    pub similarity: String,
+    pub transcription: String,
     pub vtt: String,
     pub srt: String,
     pub json_file: String,
@@ -39,7 +39,7 @@ impl TranscriptionService {
             .context("Failed to create HTTP client")?;
 
         tracing::info!(
-            "Similarity service initialized - WhisperX Service: {}",
+            "Transcription service initialized - WhisperX Service: {}",
             whisperx_service_url
         );
 
@@ -55,7 +55,7 @@ impl TranscriptionService {
         uuid: &str,
         _engine_override: Option<String>,
     ) -> Result<TranscriptionResult> {
-        tracing::info!("Starting similarity for: {} (uuid: {}) using WhisperX service", audio_path, uuid);
+        tracing::info!("Starting transcription for: {} (uuid: {}) using WhisperX service", audio_path, uuid);
         let start_time = std::time::Instant::now();
 
         // Prepare request payload
@@ -86,8 +86,8 @@ impl TranscriptionService {
 
         if !whisperx_response.success {
             let error_msg = whisperx_response.error.unwrap_or_else(|| "Unknown error".to_string());
-            tracing::error!("WhisperX similarity failed: {}", error_msg);
-            anyhow::bail!("WhisperX similarity failed: {}", error_msg);
+            tracing::error!("WhisperX transcription failed: {}", error_msg);
+            anyhow::bail!("WhisperX transcription failed: {}", error_msg);
         }
 
         let output_files = whisperx_response.output_files
@@ -107,7 +107,7 @@ impl TranscriptionService {
 
         let transcription_text = tokio::fs::read_to_string(txt_file)
             .await
-            .context("Failed to read similarity text file")?;
+            .context("Failed to read transcription text file")?;
 
         let vtt_content = tokio::fs::read_to_string(vtt_file)
             .await
@@ -135,14 +135,14 @@ impl TranscriptionService {
         let duration = start_time.elapsed();
         
         tracing::info!(
-            "Similarity completed in {:.2}s: {} characters",
+            "Transcription completed in {:.2}s: {} characters",
             duration.as_secs_f64(),
             transcription_text.len()
         );
 
         Ok(TranscriptionResult {
             uuid: uuid.to_string(),
-            similarity: transcription_text.trim().to_string(),
+            transcription: transcription_text.trim().to_string(),
             vtt: vtt_content,
             srt: srt_content,
             json_file: json_content,

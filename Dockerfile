@@ -26,7 +26,7 @@ RUN cargo build --release
 # Runtime stage - Use Ubuntu 22.04 to match deployment server
 FROM ubuntu:22.04
 
-# Install runtime dependencies including FFmpeg for noise removal and Python3 for similarity scripts
+# Install runtime dependencies including FFmpeg for noise removal and Python3 for transcription scripts
 RUN apt-get update && \
     apt-get install -y ca-certificates libssl3 ffmpeg python3 python3-pip && \
     pip3 install --no-cache-dir \
@@ -38,7 +38,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/dejavu-similarity-api /usr/local/bin/dejavu-similarity-api
+COPY --from=builder /app/target/release/dejavu-transcription-api /usr/local/bin/dejavu-transcription-api
 
 # Copy all Python scripts to fixed location
 COPY src/core/scripts/semantic_similarity_detector.py /app/core/scripts/
@@ -53,4 +53,4 @@ WORKDIR /app
 
 EXPOSE ${APP_PORT}
 
-CMD ["dejavu-similarity-api"]
+CMD ["dejavu-transcription-api"]

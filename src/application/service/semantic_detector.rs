@@ -32,7 +32,7 @@ impl SemanticDetector {
         }
     }
 
-    /// Detect if an advertisement appears in a program similarity
+    /// Detect if an advertisement appears in a program transcription
     pub async fn detect_advertisement(
         &self,
         program_text: &str,

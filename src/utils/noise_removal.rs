@@ -41,7 +41,6 @@ impl NoiseRemovalService {
         input_path: &str,
         config: Option<NoiseRemovalConfig>,
     ) -> Result<String> {
-        let start_time = std::time::Instant::now();
         let config = config.unwrap_or_default();
         let input = Path::new(input_path);
         
@@ -74,8 +73,7 @@ impl NoiseRemovalService {
             return Err(anyhow::anyhow!("Noise removal failed: {}", error));
         }
 
-        let duration = start_time.elapsed();
-        tracing::info!("Noise removal completed successfully: {} (duration: {:.2}s)", output_path, duration.as_secs_f64());
+        tracing::info!("Noise removal completed successfully: {}", output_path);
         Ok(output_path)
     }
 
@@ -146,27 +144,12 @@ impl NoiseRemovalService {
     }
 
     fn build_filter_chain(&self, config: &NoiseRemovalConfig) -> String {
-        let use_loudnorm = std::env::var("NOISE_REMOVAL_USE_LOUDNORM")
-            .unwrap_or_else(|_| "false".to_string())
-            .to_lowercase() == "true";
-        
-        if use_loudnorm {
-            // Slower but higher quality: includes 2-pass loudnorm
-            format!(
-                "highpass=f={},lowpass=f={},afftdn=nf=-{},volume=1.5,loudnorm=I=-16:TP=-1.5:LRA=11",
-                config.highpass_freq,
-                config.lowpass_freq,
-                (config.noise_reduction * 100.0) as i32
-            )
-        } else {
-            // Faster: skip loudnorm, use simple volume normalization
-            format!(
-                "highpass=f={},lowpass=f={},afftdn=nf=-{},volume=2.0",
-                config.highpass_freq,
-                config.lowpass_freq,
-                (config.noise_reduction * 100.0) as i32
-            )
-        }
+        format!(
+            "highpass=f={},lowpass=f={},afftdn=nf=-{},volume=1.5,loudnorm=I=-16:TP=-1.5:LRA=11",
+            config.highpass_freq,
+            config.lowpass_freq,
+            (config.noise_reduction * 100.0) as i32
+        )
     }
 
     async fn generate_output_path(&self, input_path: &str) -> Result<String> {
@@ -222,6 +205,84 @@ impl NoiseRemovalService {
             .output()
             .map(|output| output.status.success())
             .unwrap_or(false)
+    }
+
+    /// Convert video file (MP4, AVI, etc.) to MP3 audio format
+    #[allow(dead_code)]
+    pub async fn convert_video_to_mp3(&self, input_path: &str) -> Result<String> {
+        let input = Path::new(input_path);
+        
+        if !input.exists() {
+            return Err(anyhow::anyhow!("Input file not found: {}", input_path));
+        }
+
+        // Check if file is a video
+        let extension = input
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        
+        if !matches!(extension.as_str(), "mp4" | "avi" | "mov" | "mkv" | "webm" | "flv" | "wmv") {
+            // Not a video, return original path
+            return Ok(input_path.to_string());
+        }
+
+        let filename = input
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow::anyhow!("Invalid filename"))?;
+        
+        let timestamp = chrono::Utc::now().timestamp_millis();
+        let output_filename = format!("{}_audio_{}.mp3", filename, timestamp);
+        
+        let output_path = PathBuf::from(&self.temp_dir)
+            .join(output_filename)
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Failed to create output path"))?
+            .to_string();
+
+        fs::create_dir_all(&self.temp_dir).await?;
+        
+        tracing::info!("Converting video to MP3: {} -> {}", input_path, output_path);
+
+        // FFmpeg command to extract audio as MP3
+        let output = Command::new(&self.ffmpeg_path)
+            .arg("-i")
+            .arg(input_path)
+            .arg("-vn")                           // No video
+            .arg("-acodec")
+            .arg("libmp3lame")                   // MP3 codec
+            .arg("-ar")
+            .arg("16000")                        // Sample rate 16kHz
+            .arg("-ac")
+            .arg("1")                            // Mono
+            .arg("-b:a")
+            .arg("64k")                          // Bitrate 64kbps
+            .arg("-y")                           // Overwrite output
+            .arg(&output_path)
+            .output()
+            .map_err(|e| anyhow::anyhow!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed.", e))?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            tracing::error!("FFmpeg video conversion failed: {}", error);
+            return Err(anyhow::anyhow!("Video conversion failed: {}", error));
+        }
+
+        // Verify output file exists and has size
+        let output_metadata = fs::metadata(&output_path).await?;
+        if output_metadata.len() == 0 {
+            return Err(anyhow::anyhow!("Converted MP3 file is empty"));
+        }
+
+        tracing::info!(
+            "Video converted successfully: {} (size: {} bytes)",
+            output_path,
+            output_metadata.len()
+        );
+
+        Ok(output_path)
     }
 }
 

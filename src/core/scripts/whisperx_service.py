@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 WhisperX Persistent Service
-Keeps WhisperX model loaded in memory and serves similarity requests via HTTP.
+Keeps WhisperX model loaded in memory and serves transcription requests via HTTP.
 This eliminates model loading time on each request.
 
 Usage:
@@ -27,10 +27,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Global model instances (loaded once at startup)
+# Global model instance (loaded once at startup)
 WHISPERX_MODEL = None
 MODEL_CONFIG = {}
-ALIGNMENT_MODELS = {}  # Cache alignment models by language
 
 
 def load_model(model_name, device, compute_type, language):
@@ -46,43 +45,6 @@ def load_model(model_name, device, compute_type, language):
     
     logger.info(f"✅ WhisperX model loaded successfully")
     return model
-
-
-def get_alignment_model(language, device):
-    """Get or load alignment model for language (with caching)"""
-    import os
-    cache_enabled = os.environ.get('WHISPERX_CACHE_ALIGN_MODEL', 'true').lower() == 'true'
-    
-    if not cache_enabled:
-        # Cache disabled, load fresh model each time
-        logger.info(f"Loading alignment model for {language} (caching disabled)")
-        return whisperx.load_align_model(language_code=language, device=device)
-    
-    # Check cache
-    if language in ALIGNMENT_MODELS:
-        logger.debug(f"Using cached alignment model for {language}")
-        return ALIGNMENT_MODELS[language]
-    
-    # Load and cache
-    logger.info(f"Loading and caching alignment model for {language}")
-    try:
-        import torch
-        import gc
-        gc.collect()
-        torch.cuda.empty_cache()
-        
-        model, metadata = whisperx.load_align_model(language_code=language, device=device)
-        ALIGNMENT_MODELS[language] = (model, metadata)
-        
-        logger.info(f"✅ Alignment model for {language} loaded and cached")
-        return model, metadata
-    except torch.cuda.OutOfMemoryError:
-        logger.warning(f"CUDA OOM loading alignment model for {language}, falling back to CPU")
-        gc.collect()
-        torch.cuda.empty_cache()
-        model, metadata = whisperx.load_align_model(language_code=language, device="cpu")
-        ALIGNMENT_MODELS[language] = (model, metadata)
-        return model, metadata
 
 
 @app.route('/health', methods=['GET'])
@@ -102,13 +64,13 @@ def transcribe():
     
     Request:
         - audio_file: path to audio file
-        - uuid: unique identifier for this similarity
+        - uuid: unique identifier for this transcription
         - output_dir: directory to save output files
         - output_format: format(s) to generate (txt, vtt, srt, json, tsv, all)
     
     Response:
         - success: boolean
-        - similarity: full text
+        - transcription: full text
         - segments: list of segments with timestamps
         - output_files: paths to generated files
     """
@@ -127,26 +89,18 @@ def transcribe():
         if not audio_path.exists():
             return jsonify({'success': False, 'error': f'Audio file not found: {audio_file}'}), 404
         
-        import time
-        request_start = time.time()
         logger.info(f"Transcribing {audio_file} (uuid: {uuid})")
         
         # Load audio
-        load_start = time.time()
         audio = whisperx.load_audio(str(audio_path))
-        load_duration = time.time() - load_start
-        logger.debug(f"[PERF] Audio loaded in {load_duration:.2f}s")
         
         # Transcribe
-        transcribe_start = time.time()
         batch_size = 16 if MODEL_CONFIG['device'] == 'cuda' else 8
         result = WHISPERX_MODEL.transcribe(
             audio,
             batch_size=batch_size,
             language=MODEL_CONFIG['language']
         )
-        transcribe_duration = time.time() - transcribe_start
-        logger.info(f"[PERF] Similarity completed in {transcribe_duration:.2f}s")
         
         # Align whisper output to get word-level timestamps
         language = result.get("language", MODEL_CONFIG['language'])
@@ -165,15 +119,10 @@ def transcribe():
         for seg in result.get("segments", []):
             original_segment_words.append(seg.get("text", "").strip().split())
         
-        # Alignment with cached model
-        import time
-        align_start = time.time()
         try:
-            model_a, metadata = get_alignment_model(language, MODEL_CONFIG['device'])
+            model_a, metadata = whisperx.load_align_model(language_code=language, device=MODEL_CONFIG['device'])
             result = whisperx.align(result["segments"], model_a, metadata, audio, MODEL_CONFIG['device'], return_char_alignments=False)
-            
-            align_duration = time.time() - align_start
-            logger.info(f"[PERF] Alignment completed in {align_duration:.2f}s")
+            del model_a
             
             # Restore original word texts (alignment only provides timing/scores)
             for seg_idx, seg in enumerate(result.get("segments", [])):
@@ -189,8 +138,7 @@ def transcribe():
         segments = result.get("segments", [])
         full_text = " ".join([seg.get("text", "").strip() for seg in segments])
         
-        total_duration = time.time() - request_start
-        logger.info(f"[PERF] Total request time: {total_duration:.2f}s ({len(segments)} segments, {len(full_text)} characters)")
+        logger.info(f"Transcription complete: {len(segments)} segments, {len(full_text)} characters")
         
         # Generate output files
         output_path = Path(output_dir)
@@ -221,7 +169,7 @@ def transcribe():
         
         return jsonify({
             'success': True,
-            'similarity': full_text,
+            'transcription': full_text,
             'segments': segments,
             'output_files': output_files,
             'language': result.get('language', MODEL_CONFIG['language']),
@@ -229,12 +177,12 @@ def transcribe():
         })
     
     except Exception as e:
-        logger.error(f"Similarity error: {str(e)}", exc_info=True)
+        logger.error(f"Transcription error: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def write_txt(segments, output_base):
-    """Write plain text similarity"""
+    """Write plain text transcription"""
     file_path = f"{output_base}.txt"
     with open(file_path, "w", encoding="utf-8") as f:
         for segment in segments:

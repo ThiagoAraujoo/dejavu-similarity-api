@@ -6,9 +6,9 @@
 set -e
 
 # Configuration
-APP_NAME="dejavu-similarity-api"
+APP_NAME="dejavu-transcription-api"
 DEPLOY_DIR="/opt/dejavu/backend"
-SERVICE_NAME="dejavu-similarity-api.service"
+SERVICE_NAME="dejavu-transcription-api.service"
 BINARY_PATH="$DEPLOY_DIR/target/release/$APP_NAME"
 
 # Colors for output
@@ -81,7 +81,7 @@ Group=root
 WorkingDirectory=/opt/dejavu/backend
 Environment=RUST_LOG=info
 EnvironmentFile=/opt/dejavu/backend/.env
-ExecStart=/opt/dejavu/backend/target/release/dejavu-similarity-api
+ExecStart=/opt/dejavu/backend/target/release/dejavu-transcription-api
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGINT

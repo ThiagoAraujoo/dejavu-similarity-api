@@ -7,7 +7,7 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::presentation::controllers::api::similarity::TranscriptionRestState;
+use crate::presentation::controllers::api::transcription::TranscriptionRestState;
 
 #[derive(Debug, Deserialize)]
 pub struct AuthParams {
@@ -28,7 +28,7 @@ pub async fn status_websocket_handler(
     let provided_token = params.token.as_deref().unwrap_or("");
 
     if expected_token.is_empty() {
-        tracing::error!("Similarity authentication token not configured");
+        tracing::error!("Transcription authentication token not configured");
         return (StatusCode::INTERNAL_SERVER_ERROR, "Authentication not configured").into_response();
     }
 

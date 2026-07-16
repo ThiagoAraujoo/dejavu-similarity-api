@@ -189,25 +189,12 @@ jobs:
               torchaudio \
               --index-url https://download.pytorch.org/whl/cu121
             
-            # Install Python dependencies (skip if already installed)
-            echo "Checking Python dependencies..."
+            # Install Python dependencies
+            echo "Installing WhisperX and dependencies..."
+            sudo pip3 install --break-system-packages --ignore-installed blinker werkzeug itsdangerous whisperx flask sentence-transformers 2>&1 | tail -n 10
             
-            MISSING_PACKAGES=""
-            for pkg in whisperx flask sentence-transformers; do
-              if ! python3 -c "import ${pkg//-/_}" 2>/dev/null; then
-                echo "  ⚠️  $pkg not found, will install"
-                MISSING_PACKAGES="$MISSING_PACKAGES $pkg"
-              else
-                echo "  ✅ $pkg already installed"
-              fi
-            done
-            
-            if [ -n "$MISSING_PACKAGES" ]; then
-              echo "Installing missing packages:$MISSING_PACKAGES"
-              sudo pip3 install --break-system-packages --ignore-installed blinker werkzeug itsdangerous $MISSING_PACKAGES 2>&1 | tail -n 10
-            else
-              echo "All Python packages already installed, skipping."
-            fi
+            # Verify installations
+            echo "Verifying Python packages..."
             
             # Verify PyTorch with CUDA
             echo "Verifying PyTorch and CUDA..."
