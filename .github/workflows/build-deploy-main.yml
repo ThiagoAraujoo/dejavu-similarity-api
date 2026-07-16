@@ -1,4 +1,4 @@
-name: Deploy Transcription API
+name: Deploy Similarity API
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-22.04 
+    runs-on: ubuntu-22.04
     environment: main
     env:
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -37,58 +37,50 @@ jobs:
           echo "=== BUILDING APPLICATION IN RELEASE MODE ==="
           cargo build --release
           
-          # Verify binary was created
           if [ -f "target/release/dejavu-similarity-api" ]; then
             ls -la target/release/dejavu-similarity-api
             file target/release/dejavu-similarity-api
           else
-            echo "❌ Failed to build binary"
+            echo "Failed to build binary"
             exit 1
           fi
       
       - name: Generate Environment File
         run: |
-          # Ensure all required environment variables are set
-          # Ensure all required environment variables are set
           APP_PORT="${{ vars.APP_PORT }}"
           NODE_ENV="${{ vars.NODE_ENV }}"
           JWT_SECRET="${{ secrets.JWT_SECRET }}"
           WEBSOCKET_AUTH_TOKEN="${{ secrets.WEBSOCKET_AUTH_TOKEN }}"
-          WHISPER_PATH="${{ vars.WHISPER_PATH }}"
-          WHISPER_MODEL="${{ vars.WHISPER_MODEL }}"
-          WHISPER_LANGUAGE="${{ vars.WHISPER_LANGUAGE }}"
-          MAX_CONCURRENT_TRANSCRIPTIONS="${{ vars.MAX_CONCURRENT_TRANSCRIPTIONS }}"
-          TRANSCRIPTION_TIMEOUT_SECONDS="${{ vars.TRANSCRIPTION_TIMEOUT_SECONDS }}"
           SEMANTIC_DETECTOR_PATH="${{ vars.SEMANTIC_DETECTOR_PATH }}"
+          SIMILARITY_SERVICE_URL="${{ vars.SIMILARITY_SERVICE_URL }}"
           SIMILARITY_WORKERS="${{ vars.SIMILARITY_WORKERS }}"
+          SIMILARITY_WINDOW_SIZE="${{ vars.SIMILARITY_WINDOW_SIZE }}"
+          SIMILARITY_WINDOW_OVERLAP="${{ vars.SIMILARITY_WINDOW_OVERLAP }}"
           SIMILARITY_THRESHOLD="${{ vars.SIMILARITY_THRESHOLD }}"
           AUTO_APPROVAL_THRESHOLD="${{ vars.AUTO_APPROVAL_THRESHOLD }}"
+          PARTIAL_MATCH_THRESHOLD="${{ vars.PARTIAL_MATCH_THRESHOLD }}"
+          MAX_CONCURRENT_TASKS="${{ vars.MAX_CONCURRENT_TASKS }}"
+          TASK_TIMEOUT_SECONDS="${{ vars.TASK_TIMEOUT_SECONDS }}"
           RUST_LOG="${{ vars.RUST_LOG }}"
           
-          # Use defaults if variables are empty
           echo "APP_PORT=${APP_PORT:-3000}" > .env
           echo "NODE_ENV=${NODE_ENV:-production}" >> .env
           echo "JWT_SECRET=${JWT_SECRET}" >> .env
           echo "WEBSOCKET_AUTH_TOKEN=${WEBSOCKET_AUTH_TOKEN}" >> .env
-          echo "WHISPER_PATH=${WHISPER_PATH:-/opt/dejavu/backend/scripts/faster_whisper_cli.py}" >> .env
-          echo "DISTIL_WHISPER_PATH=${DISTIL_WHISPER_PATH:-/opt/dejavu/backend/scripts/distil_whisper_cli.py}" >> .env
-          echo "WHISPERX_PATH=${WHISPERX_PATH:-/opt/dejavu/backend/scripts/whisperx_cli.py}" >> .env
-          echo "WHISPER_MODEL=${WHISPER_MODEL:-large-v3}" >> .env
-          echo "WHISPER_LANGUAGE=${WHISPER_LANGUAGE:-pt}" >> .env
-          echo "WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}" >> .env
-          echo "WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-float16}" >> .env
-          echo "MAX_CONCURRENT_TRANSCRIPTIONS=${MAX_CONCURRENT_TRANSCRIPTIONS:-2}" >> .env
-          echo "TRANSCRIPTION_TIMEOUT_SECONDS=${TRANSCRIPTION_TIMEOUT_SECONDS:-120}" >> .env
           echo "SEMANTIC_DETECTOR_PATH=${SEMANTIC_DETECTOR_PATH:-/opt/dejavu/backend/scripts/semantic_similarity_detector.py}" >> .env
           echo "SIMILARITY_SERVICE_URL=${SIMILARITY_SERVICE_URL:-http://127.0.0.1:8002}" >> .env
           echo "SIMILARITY_WORKERS=${SIMILARITY_WORKERS:-4}" >> .env
+          echo "SIMILARITY_WINDOW_SIZE=${SIMILARITY_WINDOW_SIZE:-50}" >> .env
+          echo "SIMILARITY_WINDOW_OVERLAP=${SIMILARITY_WINDOW_OVERLAP:-25}" >> .env
           echo "SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}" >> .env
           echo "AUTO_APPROVAL_THRESHOLD=${AUTO_APPROVAL_THRESHOLD:-70.0}" >> .env
+          echo "PARTIAL_MATCH_THRESHOLD=${PARTIAL_MATCH_THRESHOLD:-30.0}" >> .env
+          echo "MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS:-4}" >> .env
+          echo "TASK_TIMEOUT_SECONDS=${TASK_TIMEOUT_SECONDS:-30}" >> .env
           echo "RUST_LOG=${RUST_LOG:-info}" >> .env
           
-          # Validate critical variables
           if [ -z "$JWT_SECRET" ]; then
-            echo "⚠️  WARNING: JWT_SECRET is not set, using default"
+            echo "WARNING: JWT_SECRET is not set"
           fi
           
           cat .env
@@ -102,196 +94,73 @@ jobs:
 
       - name: Deploy application to server
         run: |
-          # Create temporary deployment directory in home folder
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ~/dejavu-deploy"
           
-          # Copy binary and configuration files to home directory first
           echo "Deploying binary and configuration..."
           scp target/release/dejavu-similarity-api ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/
           scp .env ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/
           
-          # Copy Python scripts
           echo "Deploying Python scripts..."
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ~/dejavu-deploy/scripts"
-          scp src/core/scripts/whisperx_service.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
           scp src/core/scripts/semantic_similarity_detector.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
           scp src/core/scripts/semantic_similarity_service.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
                     
-          # Move files to /opt with sudo
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
             echo "Moving files to /opt/dejavu/backend..."
             sudo mkdir -p /opt/dejavu/backend
             
-            # Remove old files except .env (to preserve manual edits during debugging)
             sudo find /opt/dejavu/backend -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} + 2>/dev/null || true
             
-            # Copy all files including hidden ones
             sudo cp -r ~/dejavu-deploy/* /opt/dejavu/backend/ 2>/dev/null || true
-            sudo cp ~/dejavu-deploy/.env /opt/dejavu/backend/.env 2>/dev/null || echo "Warning: .env not found in ~/dejavu-deploy/"
+            sudo cp ~/dejavu-deploy/.env /opt/dejavu/backend/.env 2>/dev/null || echo "Warning: .env not found"
             
-            # Verify .env was copied
             if [ -f /opt/dejavu/backend/.env ]; then
-              echo "✅ .env file deployed successfully"
+              echo ".env file deployed successfully"
             else
-              echo "❌ ERROR: .env file NOT deployed!"
+              echo "ERROR: .env file NOT deployed!"
             fi
             
-            # Set permissions
             sudo chmod +x /opt/dejavu/backend/dejavu-similarity-api
             sudo chmod 600 /opt/dejavu/backend/.env 2>/dev/null || true
             
-            # Create logs directory
             sudo mkdir -p /opt/dejavu/backend/logs
             sudo chmod 755 /opt/dejavu/backend/logs
             
-            # Set ownership
             sudo chown -R root:root /opt/dejavu/backend
             
-            # Cleanup
             rm -rf ~/dejavu-deploy
             
-            echo "✅ Files deployed successfully"
+            echo "Files deployed successfully"
             ls -la /opt/dejavu/backend/
           EOF
 
-      - name: Install FFmpeg on deployment server
+      - name: Install Python dependencies on deployment server
         run: |
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            echo "=== INSTALLING FFMPEG ==="
-            
-            # Check if FFmpeg is already installed
-            if command -v ffmpeg &> /dev/null; then
-              echo "FFmpeg is already installed:"
-              ffmpeg -version | head -n 1
-            else
-              echo "Installing FFmpeg..."
-              sudo apt-get update
-              sudo apt-get install -y ffmpeg
-              echo "✅ FFmpeg installed successfully"
-              ffmpeg -version | head -n 1
-            fi
-            
             echo "=== INSTALLING PYTHON DEPENDENCIES ==="
             
-            # Check if Python3 is installed
-            if command -v python3 &> /dev/null; then
-              echo "Python3 is already installed:"
-              python3 --version
-            else
-              echo "Installing Python3..."
+            if ! command -v python3 &> /dev/null; then
+              sudo apt-get update
               sudo apt-get install -y python3 python3-pip
-              echo "✅ Python3 installed successfully"
             fi
             
-            # Install PyTorch with CUDA 12.1 (latest stable, compatible with modern GPUs)
-            echo "Installing PyTorch 2.7.1 with CUDA 12.1..."
-            sudo pip3 uninstall -y torch torchaudio 2>/dev/null || true
-            sudo pip3 install --break-system-packages \
-              torch \
-              torchaudio \
-              --index-url https://download.pytorch.org/whl/cu121
-            
-            # Install Python dependencies (skip if already installed)
-            echo "Checking Python dependencies..."
-            
             MISSING_PACKAGES=""
-            for pkg in whisperx flask sentence-transformers; do
-              if ! python3 -c "import ${pkg//-/_}" 2>/dev/null; then
-                echo "  ⚠️  $pkg not found, will install"
+            for pkg in sentence-transformers torch transformers flask; do
+              module=${pkg//-/_}
+              if ! python3 -c "import ${module}" 2>/dev/null; then
+                echo "  $pkg not found, will install"
                 MISSING_PACKAGES="$MISSING_PACKAGES $pkg"
               else
-                echo "  ✅ $pkg already installed"
+                echo "  $pkg already installed"
               fi
             done
             
             if [ -n "$MISSING_PACKAGES" ]; then
               echo "Installing missing packages:$MISSING_PACKAGES"
-              sudo pip3 install --break-system-packages --ignore-installed blinker werkzeug itsdangerous $MISSING_PACKAGES 2>&1 | tail -n 10
-            else
-              echo "All Python packages already installed, skipping."
+              sudo pip3 install --break-system-packages $MISSING_PACKAGES 2>&1 | tail -n 20
             fi
             
-            # Verify PyTorch with CUDA
-            echo "Verifying PyTorch and CUDA..."
-            python3 -c "import torch; print('✅ PyTorch version:', torch.__version__); print('   CUDA available:', torch.cuda.is_available())" || echo "⚠️  PyTorch verification failed"
-            
-            # Verify WhisperX
-            if python3 -c "import whisperx" 2>/dev/null; then
-              echo "✅ whisperx installed successfully"
-              python3 -c "import whisperx; print('   WhisperX module loaded')"
-            else
-              echo "❌ ERROR: whisperx not found!"
-              exit 1
-            fi
-            
-            # Verify Flask
-            if python3 -c "import flask" 2>/dev/null; then
-              echo "✅ flask installed successfully"
-            else
-              echo "❌ ERROR: flask not found!"
-              exit 1
-            fi
-            
-            # Verify sentence-transformers
-            if python3 -c "import sentence_transformers" 2>/dev/null; then
-              echo "✅ sentence-transformers installed successfully"
-            else
-              echo "⚠️  WARNING: sentence-transformers not found (needed for semantic similarity)"
-            fi
-            
-            echo "✅ All Python dependencies installed successfully"
-          EOF
-
-      - name: Setup WhisperX service
-        run: |
-          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            echo "=== SETTING UP WHISPERX SERVICE ==="
-            
-            # Create WhisperX systemd service
-            sudo tee /etc/systemd/system/whisperx.service > /dev/null << 'WHISPERX_EOF'
-          [Unit]
-          Description=WhisperX Transcription Service
-          After=network.target
-          
-          [Service]
-          Type=simple
-          User=root
-          Group=root
-          WorkingDirectory=/opt/dejavu/backend/scripts
-          Environment=PYTHONUNBUFFERED=1
-          EnvironmentFile=/opt/dejavu/backend/.env
-          ExecStart=/usr/bin/python3 /opt/dejavu/backend/scripts/whisperx_service.py --port 8001 --host 127.0.0.1 --model ${WHISPER_MODEL} --device ${WHISPER_DEVICE} --compute_type ${WHISPER_COMPUTE_TYPE} --language ${WHISPER_LANGUAGE}
-          Restart=always
-          RestartSec=10
-          
-          # Resource limits
-          LimitNOFILE=65536
-          
-          [Install]
-          WantedBy=multi-user.target
-          WHISPERX_EOF
-            
-            # Reload systemd and enable WhisperX service
-            sudo systemctl daemon-reload
-            sudo systemctl enable whisperx.service
-            
-            # Start WhisperX service
-            sudo systemctl stop whisperx.service || echo "WhisperX service was not running"
-            sudo systemctl start whisperx.service
-            
-            # Wait for WhisperX to load model
-            echo "Waiting for WhisperX service to load model (this may take 30-60 seconds)..."
-            sleep 30
-            
-            # Check WhisperX service status
-            echo "WhisperX service status:"
-            sudo systemctl status whisperx.service --no-pager -l || true
-            
-            # Test WhisperX health endpoint
-            echo "Testing WhisperX health endpoint..."
-            curl -s http://127.0.0.1:8001/health || echo "⚠️  WhisperX health check failed"
-            
-            echo "✅ WhisperX service configured"
+            echo "All Python dependencies installed successfully"
           EOF
 
       - name: Setup similarity service
@@ -299,7 +168,6 @@ jobs:
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
             echo "=== SETTING UP SIMILARITY SERVICE ==="
 
-            # Create similarity systemd service
             sudo tee /etc/systemd/system/similarity.service > /dev/null << 'SIMILARITY_EOF'
           [Unit]
           Description=Semantic Similarity Service
@@ -316,49 +184,39 @@ jobs:
           Restart=always
           RestartSec=10
 
-          # Resource limits
           LimitNOFILE=65536
 
           [Install]
           WantedBy=multi-user.target
           SIMILARITY_EOF
 
-            # Reload systemd and enable similarity service
             sudo systemctl daemon-reload
             sudo systemctl enable similarity.service
 
-            # Start similarity service
             sudo systemctl stop similarity.service || echo "Similarity service was not running"
             sudo systemctl start similarity.service
 
-            # Wait for the model to load
             echo "Waiting for similarity service to load model..."
             sleep 15
 
-            # Check similarity service status
-            echo "Similarity service status:"
             sudo systemctl status similarity.service --no-pager -l || true
+            curl -s http://127.0.0.1:8002/health || echo "Similarity health check failed"
 
-            # Test similarity health endpoint
-            echo "Testing similarity health endpoint..."
-            curl -s http://127.0.0.1:8002/health || echo "⚠️  Similarity health check failed"
-
-            echo "✅ Similarity service configured"
+            echo "Similarity service configured"
           EOF
 
       - name: Setup systemd service
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
             echo "=== SETTING UP SYSTEMD SERVICE ==="
-            
-            # Create systemd service file
+
             sudo tee /etc/systemd/system/dejavu-similarity-api.service > /dev/null << 'SERVICE_EOF'
           [Unit]
-          Description=Dejavu API Rust Backend
-          After=network.target postgresql.service whisperx.service similarity.service
-          Wants=postgresql.service whisperx.service similarity.service
-          Requires=whisperx.service similarity.service
-          
+          Description=Dejavu Similarity API Rust Backend
+          After=network.target postgresql.service similarity.service
+          Wants=postgresql.service similarity.service
+          Requires=similarity.service
+
           [Service]
           Type=simple
           User=root
@@ -373,42 +231,32 @@ jobs:
           TimeoutStopSec=5
           Restart=always
           RestartSec=10
-          
-          # Resource limits
+
           LimitNOFILE=65536
-          
+
           [Install]
           WantedBy=multi-user.target
           SERVICE_EOF
-            
-            # Permissions already set during deployment
-            
-            # Reload systemd and enable service
+
             sudo systemctl daemon-reload
             sudo systemctl enable dejavu-similarity-api.service
-            
-            echo "✅ Systemd service configured"
+
+            echo "Systemd service configured"
           EOF
 
       - name: Start application service
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
             echo "=== STARTING APPLICATION SERVICE ==="
-            
-            # Stop existing service if running
+
             sudo systemctl stop dejavu-similarity-api.service || echo "Service was not running"
-            
-            # Start the service
             sudo systemctl start dejavu-similarity-api.service
-            
-            # Wait for service to initialize
+
             sleep 10
-            
-            # Check service status
+
             echo "Service status:"
             sudo systemctl status dejavu-similarity-api.service --no-pager -l
-            
-            # Show detailed logs for debugging
+
             echo "=== DETAILED STARTUP LOGS ==="
             sudo journalctl -u dejavu-similarity-api.service --no-pager -l -n 20 --since "2 minutes ago"
           EOF
@@ -417,42 +265,28 @@ jobs:
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
             echo "=== DEPLOYMENT VERIFICATION ==="
-            
-            # Verify FFmpeg is available
-            echo "Checking FFmpeg availability:"
-            if command -v ffmpeg &> /dev/null; then
-              echo "✅ FFmpeg is available:"
-              ffmpeg -version | head -n 1
-            else
-              echo "⚠️  WARNING: FFmpeg is not available - noise removal will not work"
-            fi
-            
-            # Check if service is active
+
             if sudo systemctl is-active --quiet dejavu-similarity-api.service; then
-              echo "✅ Service is running successfully"
-              
-              # Test API endpoint
-              echo "Testing API health:"
+              echo "Service is running successfully"
+
               sleep 5
               APP_PORT=$(grep APP_PORT /opt/dejavu/backend/.env | cut -d'=' -f2)
               curl -f "http://localhost:${APP_PORT:-3000}/health" || echo "Health endpoint not available"
-              
             else
-              echo "❌ Service failed to start"
-              
-              # Show detailed status and logs for debugging
+              echo "Service failed to start"
+
               echo "Service status:"
               sudo systemctl status dejavu-similarity-api.service --no-pager -l
-              
+
               echo "Recent error logs:"
               sudo journalctl -u dejavu-similarity-api.service --no-pager -l -n 50
-              
+
               echo "Environment file:"
               cat /opt/dejavu/backend/.env
-              
+
               echo "Binary permissions:"
               ls -la /opt/dejavu/backend/dejavu-similarity-api
-              
+
               exit 1
             fi
           EOF
