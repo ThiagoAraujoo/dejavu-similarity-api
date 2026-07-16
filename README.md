@@ -1,10 +1,10 @@
-# Dejavu Transcription API
+# Dejavu Similarity API
 
 A high-performance audio transcription API built with Rust and faster-whisper, optimized for Portuguese language transcription.
 
 ## Features
 
-- **4x Faster Transcription**: Uses faster-whisper implementation for significantly improved performance
+- **4x Faster Similarity**: Uses faster-whisper implementation for significantly improved performance
 - **Portuguese Optimized**: Configured specifically for Portuguese language transcription
 - **Multiple Output Formats**: Returns transcriptions in VTT, SRT, JSON, and TSV formats
 - **Real-time Updates**: WebSocket support for live transcription status updates
@@ -44,7 +44,7 @@ cp .env.example .env
 Edit `.env` and set your configuration:
 
 ```env
-# Transcription (faster-whisper configuration)
+# Similarity (faster-whisper configuration)
 WHISPER_PATH=faster-whisper
 WHISPER_MODEL=large-v3
 WHISPER_LANGUAGE=pt
@@ -63,7 +63,7 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
 
 ## API Usage
 
-### Upload Audio for Transcription
+### Upload Audio for Similarity
 
 **Endpoint**: `POST /api/transcription/upload`
 
@@ -77,7 +77,7 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
 {
   "job_id": "019abc12-3def-4567-8901-234567890abc",
   "status": "processing",
-  "message": "Transcription job started. Connect to WebSocket for updates."
+  "message": "Similarity job started. Connect to WebSocket for updates."
 }
 ```
 
@@ -91,7 +91,7 @@ The API will start on `http://localhost:8080` (or the port specified in your `.e
   "job_id": "019abc12-3def-4567-8901-234567890abc",
   "status": "completed",
   "progress": 100.0,
-  "message": "Transcription completed successfully",
+  "message": "Similarity completed successfully",
   "result": {
     "uuid": "019abc12-3def-4567-8901-234567890abc",
     "transcription": "Complete transcription text in Portuguese",

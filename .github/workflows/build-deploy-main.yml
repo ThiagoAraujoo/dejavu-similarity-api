@@ -54,9 +54,6 @@ jobs:
           NODE_ENV="${{ vars.NODE_ENV }}"
           JWT_SECRET="${{ secrets.JWT_SECRET }}"
           WEBSOCKET_AUTH_TOKEN="${{ secrets.WEBSOCKET_AUTH_TOKEN }}"
-          WHISPER_PATH="${{ vars.WHISPER_PATH }}"
-          WHISPER_MODEL="${{ vars.WHISPER_MODEL }}"
-          WHISPER_LANGUAGE="${{ vars.WHISPER_LANGUAGE }}"
           MAX_CONCURRENT_TRANSCRIPTIONS="${{ vars.MAX_CONCURRENT_TRANSCRIPTIONS }}"
           TRANSCRIPTION_TIMEOUT_SECONDS="${{ vars.TRANSCRIPTION_TIMEOUT_SECONDS }}"
           SEMANTIC_DETECTOR_PATH="${{ vars.SEMANTIC_DETECTOR_PATH }}"
@@ -70,15 +67,6 @@ jobs:
           echo "NODE_ENV=${NODE_ENV:-production}" >> .env
           echo "JWT_SECRET=${JWT_SECRET}" >> .env
           echo "WEBSOCKET_AUTH_TOKEN=${WEBSOCKET_AUTH_TOKEN}" >> .env
-          echo "WHISPER_PATH=${WHISPER_PATH:-/opt/dejavu/backend/scripts/faster_whisper_cli.py}" >> .env
-          echo "DISTIL_WHISPER_PATH=${DISTIL_WHISPER_PATH:-/opt/dejavu/backend/scripts/distil_whisper_cli.py}" >> .env
-          echo "WHISPERX_PATH=${WHISPERX_PATH:-/opt/dejavu/backend/scripts/whisperx_cli.py}" >> .env
-          echo "WHISPER_MODEL=${WHISPER_MODEL:-large-v3}" >> .env
-          echo "WHISPER_LANGUAGE=${WHISPER_LANGUAGE:-pt}" >> .env
-          echo "WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}" >> .env
-          echo "WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-float16}" >> .env
-          echo "MAX_CONCURRENT_TRANSCRIPTIONS=${MAX_CONCURRENT_TRANSCRIPTIONS:-2}" >> .env
-          echo "TRANSCRIPTION_TIMEOUT_SECONDS=${TRANSCRIPTION_TIMEOUT_SECONDS:-120}" >> .env
           echo "SEMANTIC_DETECTOR_PATH=${SEMANTIC_DETECTOR_PATH:-/opt/dejavu/backend/scripts/semantic_similarity_detector.py}" >> .env
           echo "SIMILARITY_WORKERS=${SIMILARITY_WORKERS:-4}" >> .env
           echo "SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-45.0}" >> .env
@@ -112,7 +100,6 @@ jobs:
           # Copy Python scripts
           echo "Deploying Python scripts..."
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ~/dejavu-deploy/scripts"
-          scp src/core/scripts/whisperx_service.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
           scp src/core/scripts/semantic_similarity_detector.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
                     
           # Move files to /opt with sudo
