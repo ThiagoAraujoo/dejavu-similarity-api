@@ -142,7 +142,7 @@ jobs:
       - name: Install FFmpeg on deployment server
         run: |
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-                      
+
             echo "=== INSTALLING PYTHON DEPENDENCIES ==="
             
             # Check if Python3 is installed
@@ -197,9 +197,8 @@ jobs:
             sudo tee /etc/systemd/system/dejavu-similarity-api.service > /dev/null << 'SERVICE_EOF'
           [Unit]
           Description=Dejavu API Rust Backend
-          After=network.target postgresql.service whisperx.service
-          Wants=postgresql.service whisperx.service
-          Requires=whisperx.service
+          After=network.target postgresql.service
+          Wants=postgresql.service
           
           [Service]
           Type=simple
