@@ -1,10 +1,7 @@
 use axum::{
-    extract::{
-        ws::{Message, WebSocket},
-        Query, State, WebSocketUpgrade,
-    },
-    http::StatusCode,
+    extract::{ws::{Message, WebSocket}, Query, State, WebSocketUpgrade},
     response::{IntoResponse, Response},
+    http::StatusCode,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
@@ -45,20 +42,17 @@ pub async fn similarity_handler(
     State(detector): State<Arc<SemanticDetector>>,
 ) -> Response {
     // Validate authentication token
-    let expected_token = std::env::var("WEBSOCKET_AUTH_TOKEN").unwrap_or_else(|_| {
-        tracing::warn!("WEBSOCKET_AUTH_TOKEN not set in environment");
-        String::new()
-    });
+    let expected_token = std::env::var("WEBSOCKET_AUTH_TOKEN")
+        .unwrap_or_else(|_| {
+            tracing::warn!("WEBSOCKET_AUTH_TOKEN not set in environment");
+            String::new()
+        });
 
     let provided_token = params.token.as_deref().unwrap_or("");
 
     if expected_token.is_empty() {
         tracing::error!("Authentication token not configured in environment");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Authentication not configured",
-        )
-            .into_response();
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Authentication not configured").into_response();
     }
 
     if provided_token.is_empty() {

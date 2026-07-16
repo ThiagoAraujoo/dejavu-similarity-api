@@ -216,7 +216,7 @@ def calculate_word_match_score(ad_words: list, program_words: list) -> tuple:
 
 def detect_advertisement(program_text: str, ad_text: str) -> dict:
     """
-    Detect if an advertisement appears in a program transcription using sequence matching.
+    Detect if an advertisement appears in a program similarity using sequence matching.
     Returns a dict with match_found, score, and matched_snippet.
     """
     

@@ -28,30 +28,6 @@ fi
 echo "✅ .env file found"
 echo ""
 
-# Start persistent similarity service in the background
-echo "🧠 Starting semantic similarity service..."
-python3 src/core/scripts/semantic_similarity_service.py &
-SIMILARITY_PID=$!
-
-# Ensure the service is stopped when the script exits
-cleanup() {
-    echo ""
-    echo "🛑 Stopping semantic similarity service (PID $SIMILARITY_PID)..."
-    kill $SIMILARITY_PID 2>/dev/null || true
-}
-trap cleanup EXIT
-
-# Wait for the service to be ready
-for i in {1..30}; do
-    if curl -s http://127.0.0.1:8002/health >/dev/null 2>&1; then
-        echo "✅ Semantic similarity service is ready"
-        break
-    fi
-    sleep 1
-done
-
-echo ""
-
 # Build and run
 echo "🔨 Building project..."
 cargo build

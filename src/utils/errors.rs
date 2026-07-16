@@ -39,11 +39,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg, "Unauthorized"),
             AppError::InternalError(msg) => {
                 tracing::error!("Internal error: {}", msg);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    msg,
-                    "Internal Server Error",
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, msg, "Internal Server Error")
             }
         };
 

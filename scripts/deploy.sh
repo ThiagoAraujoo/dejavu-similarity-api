@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Dejavu Similarity API Deployment Script
+# Dejavu API Deployment Script
 # This script helps with manual deployment and service management
 
 set -e
@@ -9,7 +9,6 @@ set -e
 APP_NAME="dejavu-similarity-api"
 DEPLOY_DIR="/opt/dejavu/backend"
 SERVICE_NAME="dejavu-similarity-api.service"
-SIMILARITY_SERVICE_NAME="similarity.service"
 BINARY_PATH="$DEPLOY_DIR/target/release/$APP_NAME"
 
 # Colors for output
@@ -49,10 +48,13 @@ check_rust() {
 build_application() {
     log_info "Building application in release mode..."
     cd "$DEPLOY_DIR"
-
+    
+    # Clean previous builds
     cargo clean
+    
+    # Build with optimizations
     RUST_LOG=info cargo build --release
-
+    
     if [ -f "$BINARY_PATH" ]; then
         log_success "Binary built successfully"
         ls -la "$BINARY_PATH"
@@ -62,45 +64,15 @@ build_application() {
     fi
 }
 
-setup_similarity_service() {
-    log_info "Setting up similarity service..."
-
-    sudo tee /etc/systemd/system/$SIMILARITY_SERVICE_NAME > /dev/null << 'EOF'
-[Unit]
-Description=Semantic Similarity Service
-After=network.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=/opt/dejavu/backend/scripts
-Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/opt/dejavu/backend/.env
-ExecStart=/usr/bin/python3 /opt/dejavu/backend/scripts/semantic_similarity_service.py --port 8002 --host 127.0.0.1
-Restart=always
-RestartSec=10
-
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable $SIMILARITY_SERVICE_NAME
-    log_success "Similarity service configured"
-}
-
 setup_systemd_service() {
     log_info "Setting up systemd service..."
-
+    
+    # Create systemd service file
     sudo tee /etc/systemd/system/$SERVICE_NAME > /dev/null << 'EOF'
 [Unit]
-Description=Dejavu Similarity API Rust Backend
-After=network.target postgresql.service similarity.service
-Wants=postgresql.service similarity.service
-Requires=similarity.service
+Description=Dejavu API Rust Backend
+After=network.target postgresql.service
+Wants=postgresql.service
 
 [Service]
 Type=simple
@@ -117,33 +89,22 @@ TimeoutStopSec=5
 Restart=always
 RestartSec=10
 
+# Resource limits
 LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
 EOF
-
+    
+    # Set proper permissions
     sudo chown -R $USER:$USER "$DEPLOY_DIR"
     chmod +x "$BINARY_PATH"
-
+    
+    # Reload systemd and enable service
     sudo systemctl daemon-reload
     sudo systemctl enable $SERVICE_NAME
-
-    log_success "API systemd service configured"
-}
-
-start_similarity_service() {
-    log_info "Starting $SIMILARITY_SERVICE_NAME..."
-    sudo systemctl stop $SIMILARITY_SERVICE_NAME 2>/dev/null || true
-    sudo systemctl start $SIMILARITY_SERVICE_NAME
-    sleep 15
-    if sudo systemctl is-active --quiet $SIMILARITY_SERVICE_NAME; then
-        log_success "Similarity service started successfully"
-    else
-        log_error "Similarity service failed to start"
-        sudo systemctl status $SIMILARITY_SERVICE_NAME --no-pager -l
-        exit 1
-    fi
+    
+    log_success "Systemd service configured"
 }
 
 start_service() {
@@ -151,7 +112,7 @@ start_service() {
     sudo systemctl stop $SERVICE_NAME 2>/dev/null || true
     sudo systemctl start $SERVICE_NAME
     sleep 5
-
+    
     if sudo systemctl is-active --quiet $SERVICE_NAME; then
         log_success "Service started successfully"
     else
@@ -161,36 +122,17 @@ start_service() {
     fi
 }
 
-stop_similarity_service() {
-    log_info "Stopping $SIMILARITY_SERVICE_NAME..."
-    sudo systemctl stop $SIMILARITY_SERVICE_NAME
-    log_success "Similarity service stopped"
-}
-
 stop_service() {
     log_info "Stopping $SERVICE_NAME..."
     sudo systemctl stop $SERVICE_NAME
     log_success "Service stopped"
 }
 
-restart_similarity_service() {
-    log_info "Restarting $SIMILARITY_SERVICE_NAME..."
-    sudo systemctl restart $SIMILARITY_SERVICE_NAME
-    sleep 15
-    if sudo systemctl is-active --quiet $SIMILARITY_SERVICE_NAME; then
-        log_success "Similarity service restarted successfully"
-    else
-        log_error "Similarity service failed to restart"
-        sudo systemctl status $SIMILARITY_SERVICE_NAME --no-pager -l
-        exit 1
-    fi
-}
-
 restart_service() {
     log_info "Restarting $SERVICE_NAME..."
     sudo systemctl restart $SERVICE_NAME
     sleep 5
-
+    
     if sudo systemctl is-active --quiet $SERVICE_NAME; then
         log_success "Service restarted successfully"
     else
@@ -203,8 +145,6 @@ restart_service() {
 show_status() {
     log_info "Service status:"
     sudo systemctl status $SERVICE_NAME --no-pager -l
-    log_info "Similarity service status:"
-    sudo systemctl status $SIMILARITY_SERVICE_NAME --no-pager -l
 }
 
 show_logs() {
@@ -219,29 +159,36 @@ follow_logs() {
 
 test_api() {
     log_info "Testing API health..."
-
+    
+    # Get port from .env file
     if [ -f "$DEPLOY_DIR/.env" ]; then
         APP_PORT=$(grep APP_PORT "$DEPLOY_DIR/.env" | cut -d'=' -f2)
     fi
-    APP_PORT=${APP_PORT:-3000}
-
+    APP_PORT=${APP_PORT:-3001}
+    
     sleep 3
     if curl -f "http://localhost:$APP_PORT/health" 2>/dev/null; then
         log_success "API is responding on port $APP_PORT"
     else
         log_warning "API health check failed or endpoint not available"
     fi
+    
+    # Show listening ports
+    log_info "Listening ports:"
+    sudo netstat -tlnp | grep ":$APP_PORT" || log_warning "No process found listening on port $APP_PORT"
 }
 
 run_migrations() {
     log_info "Running database migrations..."
     cd "$DEPLOY_DIR"
-
+    
+    # Check if sea-orm-cli is installed
     if ! command -v sea-orm-cli &> /dev/null; then
         log_info "Installing sea-orm-cli..."
         cargo install sea-orm-cli
     fi
-
+    
+    # Run migrations if migration files exist
     if [ -d "migration" ] || [ -d "migrations" ]; then
         sea-orm-cli migrate up || log_warning "Migration failed or not needed"
         log_success "Migrations completed"
@@ -254,45 +201,40 @@ full_deploy() {
     log_info "Starting full deployment..."
     check_rust
     build_application
-    setup_similarity_service
     setup_systemd_service
     run_migrations
-    start_similarity_service
     start_service
     test_api
     log_success "Deployment completed successfully!"
 }
 
 show_help() {
-    echo "Dejavu Similarity API Deployment Script"
+    echo "Dejavu API Deployment Script"
     echo ""
     echo "Usage: $0 [COMMAND]"
     echo ""
     echo "Commands:"
     echo "  deploy      - Full deployment (build, setup, start)"
     echo "  build       - Build the application"
-    echo "  start       - Start the API service"
-    echo "  start-sim   - Start the similarity service"
-    echo "  stop        - Stop the API service"
-    echo "  stop-sim    - Stop the similarity service"
-    echo "  restart     - Restart the API service"
-    echo "  restart-sim - Restart the similarity service"
+    echo "  start       - Start the service"
+    echo "  stop        - Stop the service"
+    echo "  restart     - Restart the service"
     echo "  status      - Show service status"
     echo "  logs        - Show recent logs"
     echo "  follow      - Follow logs in real-time"
     echo "  test        - Test API health"
     echo "  migrate     - Run database migrations"
-    echo "  setup       - Setup systemd services only"
+    echo "  setup       - Setup systemd service only"
     echo "  help        - Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0 deploy          # Full deployment"
-    echo "  $0 restart         # Restart API service"
-    echo "  $0 restart-sim     # Restart similarity service"
+    echo "  $0 restart         # Restart service"
     echo "  $0 logs            # View recent logs"
     echo "  $0 follow          # Follow logs"
 }
 
+# Main script logic
 case "${1:-help}" in
     deploy)
         full_deploy
@@ -305,21 +247,12 @@ case "${1:-help}" in
         start_service
         test_api
         ;;
-    start-sim)
-        start_similarity_service
-        ;;
     stop)
         stop_service
-        ;;
-    stop-sim)
-        stop_similarity_service
         ;;
     restart)
         restart_service
         test_api
-        ;;
-    restart-sim)
-        restart_similarity_service
         ;;
     status)
         show_status
@@ -337,7 +270,6 @@ case "${1:-help}" in
         run_migrations
         ;;
     setup)
-        setup_similarity_service
         setup_systemd_service
         ;;
     help|--help|-h)

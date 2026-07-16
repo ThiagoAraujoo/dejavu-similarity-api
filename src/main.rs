@@ -1,11 +1,16 @@
-mod application;
 mod core;
+mod application;
 mod presentation;
 mod utils;
 
-use axum::{extract::DefaultBodyLimit, http::Method, routing::get, Router};
+use axum::{
+    routing::get,
+    Router,
+    http::Method,
+    extract::DefaultBodyLimit,
+};
 use std::net::SocketAddr;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{CorsLayer, Any};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::presentation::routes;
@@ -13,12 +18,11 @@ use crate::presentation::routes;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
-
+    
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "info,dejavu_api::application::service::semantic_detector=debug".into()
-            }),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,dejavu_api::application::service::semantic_detector=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -30,7 +34,11 @@ async fn main() -> anyhow::Result<()> {
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::OPTIONS,
+        ])
         .allow_headers(Any);
 
     let app = Router::new()
@@ -42,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Server listening on {}", addr);
-
+    
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 

@@ -44,4 +44,4 @@ pub use health::HealthUseCase;
 pub use file_queue::FileQueueUseCase;
 pub use audit::AuditUseCase;
 pub use fingerprint::FingerprintUseCase;
-pub use similarity::SimilarityDetector;
+pub use similarity::SimilarityUseCase;

@@ -1,25 +1,28 @@
 # Dejavu Similarity API
 
-A high-performance semantic similarity API built with Rust. It detects whether an advertisement transcription appears inside a program transcription using a persistent SentenceTransformer service.
+A high-performance audio similarity API built with Rust and faster-whisper, optimized for Portuguese language similarity.
 
 ## Features
 
-- **Persistent Similarity Model**: The SentenceTransformer model is loaded once in a Python HTTP service and reused for every request.
-- **WebSocket Interface**: Real-time similarity detection via WebSocket.
-- **CLI Fallback**: Optional fallback to a Python CLI script if the HTTP service is unavailable.
-- **HTTP/CLI Flexibility**: Use `SIMILARITY_SERVICE_URL` to point to the service, or set `SIMILARITY_SERVICE_URL=cli` to force CLI mode.
+- **4x Faster Similarity**: Uses faster-whisper implementation for significantly improved performance
+- **Portuguese Optimized**: Configured specifically for Portuguese language similarity
+- **Multiple Output Formats**: Returns transcriptions in VTT, SRT, JSON, and TSV formats
+- **Real-time Updates**: WebSocket support for live similarity status updates
+- **Noise Removal**: Optional audio preprocessing for better accuracy
+- **RESTful API**: Simple HTTP endpoints for file upload and processing
 
 ## Prerequisites
 
 - Rust 1.70+ (for building the API)
-- Python 3.8+ with `sentence-transformers`, `torch`, `transformers`, and `flask` (for the similarity service)
+- Python 3.8+ (for faster-whisper)
+- PostgreSQL (for data persistence)
 
 ## Installation
 
-### 1. Install Python Dependencies
+### 1. Install faster-whisper
 
 ```bash
-pip install sentence-transformers torch transformers flask
+pip install faster-whisper
 ```
 
 ### 2. Clone and Build
@@ -32,63 +35,103 @@ cargo build --release
 
 ### 3. Configure Environment
 
+Copy the example environment file and configure it:
+
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set at least:
+Edit `.env` and set your configuration:
 
 ```env
+# Similarity (faster-whisper configuration)
+WHISPER_PATH=faster-whisper
+WHISPER_MODEL=large-v3
+WHISPER_LANGUAGE=pt
+
+# Authentication
 WEBSOCKET_AUTH_TOKEN=your-secure-token-here
-SIMILARITY_SERVICE_URL=http://127.0.0.1:8002
 ```
 
-### 4. Run the Similarity Service
-
-```bash
-python3 src/core/scripts/semantic_similarity_service.py --port 8002
-```
-
-### 5. Run the API
+### 4. Run the API
 
 ```bash
 cargo run --release
 ```
 
-The API will start on `http://localhost:3000` (or the port specified in your `.env`).
+The API will start on `http://localhost:8080` (or the port specified in your `.env`).
 
 ## API Usage
 
-### Similarity Detection WebSocket
+### Upload Audio for Similarity
 
-**Endpoint**: `ws://localhost:3000/similarity?token=YOUR_TOKEN`
+**Endpoint**: `POST /api/similarity/upload`
 
-**Request**:
+**Request** (multipart/form-data):
+- `file`: Audio file (mp3, wav, m4a, ogg, flac)
+- `token`: Authentication token
+- `apply_noise_removal`: Optional, "true" or "false" (default: true)
 
+**Response**:
 ```json
 {
-  "uuid": "unique-request-id",
-  "programming_id": 1,
-  "programming_transcription": "full program text",
-  "advertisement_id": 2,
-  "advertisement_transcription": "advertisement text"
+  "job_id": "019abc12-3def-4567-8901-234567890abc",
+  "status": "processing",
+  "message": "Similarity job started. Connect to WebSocket for updates."
 }
 ```
 
-**Response**:
+### WebSocket Status Updates
 
+**Endpoint**: `ws://localhost:8080/ws/similarity/status?token=YOUR_TOKEN`
+
+**Status Update Format**:
 ```json
 {
-  "uuid": "unique-request-id",
-  "programming_id": 1,
-  "programming_transcription": "full program text",
-  "advertisement_id": 2,
-  "advertisement_transcription": "advertisement text",
-  "match_found": true,
-  "score": 85,
+  "job_id": "019abc12-3def-4567-8901-234567890abc",
+  "status": "completed",
+  "progress": 100.0,
+  "message": "Similarity completed successfully",
+  "result": {
+    "uuid": "019abc12-3def-4567-8901-234567890abc",
+    "similarity": "Complete similarity text in Portuguese",
+    "vtt": "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nTexto da transcrição...",
+    "srt": "1\n00:00:00,000 --> 00:00:05,000\nTexto da transcrição...",
+    "json_file": "[{\"start\": 0.0, \"end\": 5.0, \"text\": \"Texto...\"}]",
+    "tsv": "start\tend\ttext\n0\t5000\tTexto da transcrição...",
+    "duration_seconds": 120.5,
+    "language": "pt"
+  },
   "error": null
 }
 ```
+
+## Output Formats
+
+The API returns transcriptions in multiple formats:
+
+- **similarity**: Plain text similarity
+- **vtt**: WebVTT format with timestamps (for web video players)
+- **srt**: SubRip format with timestamps (for video subtitles)
+- **json_file**: JSON array with word/segment-level timestamps
+- **tsv**: Tab-separated values with start/end times and text
+
+## Performance
+
+With faster-whisper and the `large-v3` model:
+- **Speed**: ~4x faster than standard Whisper
+- **Accuracy**: Excellent for Portuguese language
+- **Model Size**: ~3GB (large-v3)
+
+### Model Options
+
+You can configure different models via `WHISPER_MODEL` environment variable:
+
+- `tiny`: Fastest, lowest accuracy (~75MB)
+- `base`: Fast, decent accuracy (~150MB)
+- `small`: Balanced (~500MB)
+- `medium`: Good accuracy (~1.5GB)
+- `large-v3`: Best accuracy, slower (~3GB) - **Recommended**
 
 ## Configuration
 
@@ -96,19 +139,16 @@ The API will start on `http://localhost:3000` (or the port specified in your `.e
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SIMILARITY_SERVICE_URL` | `http://127.0.0.1:8002` | URL of the persistent similarity service; set to `cli` to force CLI fallback |
-| `SEMANTIC_DETECTOR_PATH` | `/app/core/scripts/semantic_similarity_detector.py` | Path to the CLI fallback Python script |
-| `SIMILARITY_THRESHOLD` | `45.0` | Minimum score to consider a match |
-| `SIMILARITY_WINDOW_SIZE` | `50` | Chunk window size for the detector |
-| `SIMILARITY_WINDOW_OVERLAP` | `25` | Chunk overlap for the detector |
-| `MAX_CONCURRENT_TASKS` | CPU count | Concurrent similarity requests on the WebSocket |
-| `TASK_TIMEOUT_SECONDS` | `30` | Timeout per similarity request |
+| `WHISPER_PATH` | `faster-whisper` | Command to run similarity |
+| `WHISPER_MODEL` | `large-v3` | Whisper model to use |
+| `WHISPER_LANGUAGE` | `pt` | Language code (pt = Portuguese) |
 | `WEBSOCKET_AUTH_TOKEN` | - | Authentication token for API access |
-| `APP_PORT` | `3000` | Server port |
+| `HOST` | `0.0.0.0` | Server host |
+| `PORT` | `8080` | Server port |
 
 ## Development
 
-### Build for Development
+### Build for Development 
 
 ```bash
 cargo build
@@ -127,7 +167,28 @@ cargo test
 docker-compose up -d
 ```
 
-The Docker Compose setup starts both the Rust API and the persistent Python similarity service.
+## Troubleshooting
+
+### faster-whisper not found
+
+Ensure faster-whisper is installed and in your PATH:
+```bash
+which faster-whisper
+pip install --upgrade faster-whisper
+```
+
+### Model download issues
+
+On first run, faster-whisper will download the model. Ensure you have:
+- Internet connection
+- Sufficient disk space (~3GB for large-v3)
+- Write permissions in the model cache directory
+
+### Performance issues
+
+- Use a smaller model (`medium` or `small`) for faster processing
+- Ensure you're using faster-whisper, not standard whisper
+- Check CPU/GPU availability (faster-whisper supports CUDA)
 
 ## License
 
@@ -135,4 +196,4 @@ The Docker Compose setup starts both the Rust API and the persistent Python simi
 
 ## Contributing
 
-Thiago Silveira de Araujo
+[Contributing Guidelines Here]
