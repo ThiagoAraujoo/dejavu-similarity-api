@@ -135,4 +135,4 @@ The Docker Compose setup starts both the Rust API and the persistent Python simi
 
 ## Contributing
 
-[Contributing Guidelines Here]
+[Contributing Guidelines Here] 
