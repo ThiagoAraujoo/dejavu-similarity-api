@@ -142,20 +142,7 @@ jobs:
       - name: Install FFmpeg on deployment server
         run: |
           ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            echo "=== INSTALLING FFMPEG ==="
-            
-            # Check if FFmpeg is already installed
-            if command -v ffmpeg &> /dev/null; then
-              echo "FFmpeg is already installed:"
-              ffmpeg -version | head -n 1
-            else
-              echo "Installing FFmpeg..."
-              sudo apt-get update
-              sudo apt-get install -y ffmpeg
-              echo "✅ FFmpeg installed successfully"
-              ffmpeg -version | head -n 1
-            fi
-            
+                      
             echo "=== INSTALLING PYTHON DEPENDENCIES ==="
             
             # Check if Python3 is installed
@@ -176,25 +163,12 @@ jobs:
               torchaudio \
               --index-url https://download.pytorch.org/whl/cu121
             
-            # Install Python dependencies
-            echo "Installing WhisperX and dependencies..."
-            sudo pip3 install --break-system-packages --ignore-installed blinker werkzeug itsdangerous whisperx flask sentence-transformers 2>&1 | tail -n 10
-            
             # Verify installations
             echo "Verifying Python packages..."
             
             # Verify PyTorch with CUDA
             echo "Verifying PyTorch and CUDA..."
             python3 -c "import torch; print('✅ PyTorch version:', torch.__version__); print('   CUDA available:', torch.cuda.is_available())" || echo "⚠️  PyTorch verification failed"
-            
-            # Verify WhisperX
-            if python3 -c "import whisperx" 2>/dev/null; then
-              echo "✅ whisperx installed successfully"
-              python3 -c "import whisperx; print('   WhisperX module loaded')"
-            else
-              echo "❌ ERROR: whisperx not found!"
-              exit 1
-            fi
             
             # Verify Flask
             if python3 -c "import flask" 2>/dev/null; then
@@ -212,58 +186,6 @@ jobs:
             fi
             
             echo "✅ All Python dependencies installed successfully"
-          EOF
-
-      - name: Setup WhisperX service
-        run: |
-          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            echo "=== SETTING UP WHISPERX SERVICE ==="
-            
-            # Create WhisperX systemd service
-            sudo tee /etc/systemd/system/whisperx.service > /dev/null << 'WHISPERX_EOF'
-          [Unit]
-          Description=WhisperX Similarity Service
-          After=network.target
-          
-          [Service]
-          Type=simple
-          User=root
-          Group=root
-          WorkingDirectory=/opt/dejavu/backend/scripts
-          Environment=PYTHONUNBUFFERED=1
-          EnvironmentFile=/opt/dejavu/backend/.env
-          ExecStart=/usr/bin/python3 /opt/dejavu/backend/scripts/whisperx_service.py --port 8001 --host 127.0.0.1 --model ${WHISPER_MODEL} --device ${WHISPER_DEVICE} --compute_type ${WHISPER_COMPUTE_TYPE} --language ${WHISPER_LANGUAGE}
-          Restart=always
-          RestartSec=10
-          
-          # Resource limits
-          LimitNOFILE=65536
-          
-          [Install]
-          WantedBy=multi-user.target
-          WHISPERX_EOF
-            
-            # Reload systemd and enable WhisperX service
-            sudo systemctl daemon-reload
-            sudo systemctl enable whisperx.service
-            
-            # Start WhisperX service
-            sudo systemctl stop whisperx.service || echo "WhisperX service was not running"
-            sudo systemctl start whisperx.service
-            
-            # Wait for WhisperX to load model
-            echo "Waiting for WhisperX service to load model (this may take 30-60 seconds)..."
-            sleep 30
-            
-            # Check WhisperX service status
-            echo "WhisperX service status:"
-            sudo systemctl status whisperx.service --no-pager -l || true
-            
-            # Test WhisperX health endpoint
-            echo "Testing WhisperX health endpoint..."
-            curl -s http://127.0.0.1:8001/health || echo "⚠️  WhisperX health check failed"
-            
-            echo "✅ WhisperX service configured"
           EOF
 
       - name: Setup systemd service
@@ -337,16 +259,7 @@ jobs:
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
             echo "=== DEPLOYMENT VERIFICATION ==="
-            
-            # Verify FFmpeg is available
-            echo "Checking FFmpeg availability:"
-            if command -v ffmpeg &> /dev/null; then
-              echo "✅ FFmpeg is available:"
-              ffmpeg -version | head -n 1
-            else
-              echo "⚠️  WARNING: FFmpeg is not available - noise removal will not work"
-            fi
-            
+                        
             # Check if service is active
             if sudo systemctl is-active --quiet dejavu-similarity-api.service; then
               echo "✅ Service is running successfully"
