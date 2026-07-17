@@ -196,4 +196,4 @@ On first run, faster-whisper will download the model. Ensure you have:
 
 ## Contributing
 
-[Contributing Guidelines Here] 
+[Contributing Guidelines Here]
