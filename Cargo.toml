@@ -1,10 +1,10 @@
 [package]
-name = "dejavu-transcription-api"
+name = "dejavu-similarity-api"
 version = "1.0.0"
 edition = "2021"
 
 [[bin]]
-name = "dejavu-transcription-api"
+name = "dejavu-similarity-api"
 path = "src/main.rs"
 
 [dependencies]

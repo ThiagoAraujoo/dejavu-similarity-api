@@ -27,7 +27,6 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -35,6 +34,7 @@ jobs:
       - name: Build application
         run: |
           echo "=== BUILDING APPLICATION IN RELEASE MODE ==="
+          cargo clean
           cargo build --release
           
           # Verify binary was created
