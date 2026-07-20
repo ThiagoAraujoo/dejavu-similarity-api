@@ -55,6 +55,7 @@ jobs:
           JWT_SECRET="${{ secrets.JWT_SECRET }}"
           WEBSOCKET_AUTH_TOKEN="${{ secrets.WEBSOCKET_AUTH_TOKEN }}"
           SEMANTIC_DETECTOR_PATH="${{ vars.SEMANTIC_DETECTOR_PATH }}"
+          SIMILARITY_SERVICE_URL="${{ vars.SIMILARITY_SERVICE_URL }}"
           SIMILARITY_MODEL_NAME="${{ vars.SIMILARITY_MODEL_NAME }}"
           SIMILARITY_MODEL_PATH="${{ vars.SIMILARITY_MODEL_PATH }}"
           SIMILARITY_WORKERS="${{ vars.SIMILARITY_WORKERS }}"
@@ -73,6 +74,7 @@ jobs:
           echo "JWT_SECRET=${JWT_SECRET}" >> .env
           echo "WEBSOCKET_AUTH_TOKEN=${WEBSOCKET_AUTH_TOKEN}" >> .env
           echo "SEMANTIC_DETECTOR_PATH=${SEMANTIC_DETECTOR_PATH:-/opt/dejavu/backend/scripts/semantic_similarity_detector.py}" >> .env
+          echo "SIMILARITY_SERVICE_URL=${SIMILARITY_SERVICE_URL:-http://127.0.0.1:8002/detect}" >> .env
           echo "SIMILARITY_MODEL_NAME=${SIMILARITY_MODEL_NAME:-paraphrase-multilingual-MiniLM-L12-v2}" >> .env
           echo "SIMILARITY_MODEL_PATH=${SIMILARITY_MODEL_PATH:-/opt/dejavu/backend/models/sentence-transformer}" >> .env
           echo "SIMILARITY_WORKERS=${SIMILARITY_WORKERS:-4}" >> .env
@@ -114,6 +116,7 @@ jobs:
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ~/dejavu-deploy/scripts"
           scp src/core/scripts/semantic_similarity_detector.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
           scp src/core/scripts/download_model.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
+          scp src/core/scripts/similarity_service.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
                     
           # Move files to /opt with sudo
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
@@ -186,6 +189,12 @@ jobs:
               "transformers>=4.30.0,<5.0.0" \
               "sentence-transformers>=2.2.0,<4.0.0"
             
+            # Install FastAPI and uvicorn for similarity service
+            echo "Installing FastAPI and uvicorn..."
+            sudo pip3 install --break-system-packages \
+              "fastapi>=0.104.0,<1.0.0" \
+              "uvicorn[standard]>=0.24.0,<1.0.0"
+            
             # Verify installations
             echo "Verifying Python packages..."
             
@@ -218,17 +227,37 @@ jobs:
             sudo ls -la "${SIMILARITY_MODEL_PATH:-/opt/dejavu/backend/models/sentence-transformer}"
           EOF
 
-      - name: Setup systemd service
+      - name: Setup systemd services
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            echo "=== SETTING UP SYSTEMD SERVICE ==="
+            echo "=== SETTING UP SYSTEMD SERVICES ==="
             
-            # Create systemd service file
+            # Create similarity service systemd file
+            sudo tee /etc/systemd/system/dejavu-similarity-service.service > /dev/null << 'SIMILARITY_SERVICE_EOF'
+          [Unit]
+          Description=Dejavu Similarity Detection Service
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=root
+          Group=root
+          WorkingDirectory=/opt/dejavu/backend/scripts
+          EnvironmentFile=/opt/dejavu/backend/.env
+          ExecStart=/usr/bin/python3 /opt/dejavu/backend/scripts/similarity_service.py
+          Restart=always
+          RestartSec=5
+          
+          [Install]
+          WantedBy=multi-user.target
+          SIMILARITY_SERVICE_EOF
+            
+            # Create main API systemd service file
             sudo tee /etc/systemd/system/dejavu-similarity-api.service > /dev/null << 'SERVICE_EOF'
           [Unit]
           Description=Dejavu API Rust Backend
-          After=network.target postgresql.service
-          Wants=postgresql.service
+          After=network.target dejavu-similarity-service.service
+          Wants=dejavu-similarity-service.service
           
           [Service]
           Type=simple
@@ -254,22 +283,28 @@ jobs:
             
             # Permissions already set during deployment
             
-            # Reload systemd and enable service
+            # Reload systemd and enable services
             sudo systemctl daemon-reload
+            sudo systemctl enable dejavu-similarity-service.service
             sudo systemctl enable dejavu-similarity-api.service
             
-            echo "✅ Systemd service configured"
+            echo "✅ Systemd services configured"
           EOF
 
-      - name: Start application service
+      - name: Start application services
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            echo "=== STARTING APPLICATION SERVICE ==="
+            echo "=== STARTING APPLICATION SERVICES ==="
             
-            # Stop existing service if running
-            sudo systemctl stop dejavu-similarity-api.service || echo "Service was not running"
+            # Stop existing services if running
+            sudo systemctl stop dejavu-similarity-api.service || echo "API service was not running"
+            sudo systemctl stop dejavu-similarity-service.service || echo "Similarity service was not running"
             
-            # Start the service
+            # Start similarity service first
+            sudo systemctl start dejavu-similarity-service.service
+            sleep 5
+            
+            # Start the API service
             sudo systemctl start dejavu-similarity-api.service
             
             # Wait for service to initialize

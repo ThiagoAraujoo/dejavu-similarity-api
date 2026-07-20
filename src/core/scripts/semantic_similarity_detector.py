@@ -29,8 +29,16 @@ def load_model() -> SentenceTransformer:
     return model.to(device)
 
 
-# Load multilingual model for Portuguese support (local or downloaded once)
-MODEL = load_model()
+# Model will be loaded lazily on first use
+MODEL = None
+
+
+def ensure_model_loaded() -> SentenceTransformer:
+    """Ensure the model is loaded into memory. Loads once and reuses."""
+    global MODEL
+    if MODEL is None:
+        MODEL = load_model()
+    return MODEL
 
 # Configuration - Read from environment variables with defaults
 SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', '80.0')) / 100.0  # Convert percentage to decimal
@@ -238,6 +246,7 @@ def detect_advertisement(program_text: str, ad_text: str) -> dict:
     Detect if an advertisement appears in a program transcription using sequence matching.
     Returns a dict with match_found, score, and matched_snippet.
     """
+    ensure_model_loaded()
     
     # Normalize texts
     normalized_program = normalize_text(program_text)
