@@ -7,11 +7,30 @@ This script is called from Rust to detect if an advertisement appears in a progr
 import sys
 import json
 import os
+import torch
 from sentence_transformers import SentenceTransformer, util
 from typing import Tuple, Optional
 
-# Load multilingual model for Portuguese support
-MODEL = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+# Configuration for the local or remote model
+MODEL_NAME = os.getenv('SIMILARITY_MODEL_NAME', 'paraphrase-multilingual-MiniLM-L12-v2')
+MODEL_PATH = os.getenv('SIMILARITY_MODEL_PATH', '/opt/dejavu/backend/models/sentence-transformer')
+
+
+def load_model() -> SentenceTransformer:
+    """Load the model from a local path, or download it once and save locally."""
+    if os.path.exists(MODEL_PATH) and os.path.exists(os.path.join(MODEL_PATH, 'config.json')):
+        model = SentenceTransformer(MODEL_PATH)
+    else:
+        model = SentenceTransformer(MODEL_NAME)
+        os.makedirs(os.path.dirname(MODEL_PATH) or '/', exist_ok=True)
+        model.save(MODEL_PATH)
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    return model.to(device)
+
+
+# Load multilingual model for Portuguese support (local or downloaded once)
+MODEL = load_model()
 
 # Configuration - Read from environment variables with defaults
 SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', '80.0')) / 100.0  # Convert percentage to decimal
