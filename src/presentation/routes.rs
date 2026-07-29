@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    routing::{get},
+    routing::{get, post},
 };
 use std::sync::Arc;
 
@@ -14,5 +14,6 @@ pub fn create_routes() -> Router {
     Router::new()
         .route("/health", get(api::health::check_health))
         .route("/similarity", get(websocket::similarity::similarity_handler))
+        .route("/similarity/analyze", post(api::similarity::analyze_similarity))
         .with_state(semantic_detector)
 }
