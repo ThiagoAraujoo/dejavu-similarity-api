@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-22.04 
     environment: main
     env:
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER_SERVER_1: ${{ secrets.DEPLOY_USER_SERVER_1 }}
+      DEPLOY_HOST_SERVER_1: ${{ secrets.DEPLOY_HOST_SERVER_1 }}
 
     steps:
       - name: Checkout repository
@@ -99,27 +99,27 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.DEPLOY_HOST_SERVER_1 }} >> ~/.ssh/known_hosts
 
       - name: Deploy application to server
         run: |
           # Create temporary deployment directory in home folder
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ~/dejavu-deploy"
+          ssh ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} "mkdir -p ~/dejavu-deploy"
           
           # Copy binary and configuration files to home directory first
           echo "Deploying binary and configuration..."
-          scp target/release/dejavu-similarity-api ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/
-          scp .env ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/
+          scp target/release/dejavu-similarity-api ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }}:~/dejavu-deploy/
+          scp .env ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }}:~/dejavu-deploy/
           
           # Copy Python scripts
           echo "Deploying Python scripts..."
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ~/dejavu-deploy/scripts"
-          scp src/core/scripts/semantic_similarity_detector.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
-          scp src/core/scripts/download_model.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
-          scp src/core/scripts/similarity_service.py ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:~/dejavu-deploy/scripts/
+          ssh ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} "mkdir -p ~/dejavu-deploy/scripts"
+          scp src/core/scripts/semantic_similarity_detector.py ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }}:~/dejavu-deploy/scripts/
+          scp src/core/scripts/download_model.py ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }}:~/dejavu-deploy/scripts/
+          scp src/core/scripts/similarity_service.py ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }}:~/dejavu-deploy/scripts/
                     
           # Move files to /opt with sudo
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+          ssh ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} << 'EOF'
             echo "Moving files to /opt/dejavu/backend..."
             sudo mkdir -p /opt/dejavu/backend
             
@@ -157,7 +157,7 @@ jobs:
 
       - name: Install Python dependencies on deployment server
         run: |
-          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} << 'EOF'
 
             echo "=== INSTALLING PYTHON DEPENDENCIES ==="
             
@@ -216,7 +216,7 @@ jobs:
 
       - name: Download similarity model locally
         run: |
-          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+          ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} << 'EOF'
             echo "=== DOWNLOADING SIMILARITY MODEL ==="
             
             set -a
@@ -229,7 +229,7 @@ jobs:
 
       - name: Setup systemd services
         run: |
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+          ssh ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} << 'EOF'
             echo "=== SETTING UP SYSTEMD SERVICES ==="
             
             # Create similarity service systemd file
@@ -293,7 +293,7 @@ jobs:
 
       - name: Start application services
         run: |
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+          ssh ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} << 'EOF'
             echo "=== STARTING APPLICATION SERVICES ==="
             
             # Stop existing services if running
@@ -321,7 +321,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
+          ssh ${{ env.DEPLOY_USER_SERVER_1 }}@${{ env.DEPLOY_HOST_SERVER_1 }} << 'EOF'
             echo "=== DEPLOYMENT VERIFICATION ==="
                         
             # Check if service is active
