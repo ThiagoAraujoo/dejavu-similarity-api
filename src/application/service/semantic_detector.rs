@@ -52,7 +52,7 @@ impl SemanticDetector {
         let response = self.client
             .post(&self.service_url)
             .json(&request_body)
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(180))
             .send()
             .await
             .context("Failed to send request to similarity service")?;
